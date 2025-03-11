@@ -8,19 +8,19 @@ from email.mime.text import MIMEText
 from twilio.rest import Client
 
 # Configuration Twilio
-ACCOUNT_SID = "AC4ef4fa3040dbe75de03f3d06f76353cc"
-AUTH_TOKEN = "f2e44930e3bea3a49ace8cd77dc8f620"
+ACCOUNT_SID = "xxxxxxx"
+AUTH_TOKEN = "xxxxxxx"
 TWILIO_NUMBER = "+12318331675"  # Numéro Twilio (SMS)
-ADMIN_NUMBER = "+243971110323"  # Numéro Admin (SMS)
+ADMIN_NUMBER = "+xxxxxxx"  # Numéro Admin (SMS)
 
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
 # Configuration Email
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-EMAIL_SENDER = "branhamtmb45@gmail.com"  # ⚠️ Remplace par ton email
-EMAIL_PASSWORD = "administrateur@@"  # ⚠️ Remplace par ton mot de passe (idéalement via variable d'env)
-EMAIL_RECEIVER = "kashalabranham311@gmail.com"
+EMAIL_SENDER = "xxxxx@gmail.com"  # ⚠️ Remplace par ton email
+EMAIL_PASSWORD = "xxxxxx@@"  # ⚠️ Remplace par ton mot de passe (idéalement via variable d'env)
+EMAIL_RECEIVER = "xxxxxxx@gmail.com"
 
 # Connexion à MySQL
 db = mysql.connector.connect(
