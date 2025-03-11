@@ -2,18 +2,25 @@ import os
 import socket
 import datetime
 import mysql.connector
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from twilio.rest import Client
 
 # Configuration Twilio
-ACCOUNT_SID = "xxxx"
-AUTH_TOKEN = "xxxx"
+ACCOUNT_SID = "AC4ef4fa3040dbe75de03f3d06f76353cc"
+AUTH_TOKEN = "f2e44930e3bea3a49ace8cd77dc8f620"
 TWILIO_NUMBER = "+12318331675"  # Numéro Twilio (SMS)
-ADMIN_NUMBER = "+"  # Numéro Admin (SMS)
-
-#TWILIO_NUMBER="whatsapp:+14155238886",  # Numéro Twilio pour WhatsApp
-#ADMIN_NUMBER="whatsapp:+243xxx"  # Ton numéro WhatsApp avec l'indicatif (ex: +336XXXXXXXX)
+ADMIN_NUMBER = "+243971110323"  # Numéro Admin (SMS)
 
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
+
+# Configuration Email
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+EMAIL_SENDER = "branhamtmb45@gmail.com"  # ⚠️ Remplace par ton email
+EMAIL_PASSWORD = "administrateur@@"  # ⚠️ Remplace par ton mot de passe (idéalement via variable d'env)
+EMAIL_RECEIVER = "kashalabranham311@gmail.com"
 
 # Connexion à MySQL
 db = mysql.connector.connect(
@@ -58,7 +65,6 @@ def ensure_device_exists(device_name, ip_address):
     return result[0]  # Retourner l'ID de l'équipement
 
 # Enregistrement des événements dans MySQL
-# Enregistrement des événements dans MySQL
 def log_event(message, status="En panne"):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -68,11 +74,10 @@ def log_event(message, status="En panne"):
     # Vérifier si l'équipement existe, sinon l'ajouter avec son IP
     device_ip = devices.get(device_name, {}).get("ip", None)
     if device_ip:
-        # Vérifier que l'équipement existe avant de tenter d'ajouter un log
         device_id = ensure_device_exists(device_name, device_ip)
     else:
-        print(f"[ERREUR] L'équipement {device_name} n'a pas d'IP définie dans le dictionnaire 'devices'.")
-        device_id = None  # Si l'équipement n'existe pas, on met device_id à None
+        print(f"[ERREUR] L'équipement {device_name} n'a pas d'IP définie.")
+        device_id = None
 
     # Si un ID valide a été récupéré, insérer l'événement dans la table logs
     if device_id:
@@ -84,8 +89,7 @@ def log_event(message, status="En panne"):
         cursor.execute("UPDATE equipements SET etat=%s WHERE id=%s", (status, device_id))
         db.commit()
     else:
-        print(f"[ERREUR] Impossible d'ajouter un log pour l'équipement {device_name} car aucun ID valide n'a été trouvé.")
-
+        print(f"[ERREUR] Impossible d'ajouter un log pour {device_name}.")
 
 # Envoi d'alerte par SMS
 def send_alert(message):
@@ -95,12 +99,29 @@ def send_alert(message):
     except Exception as e:
         print(f"[ERREUR] Impossible d'envoyer l'alerte SMS : {e}")
 
+# Envoi d'alerte par email
+def send_email(subject, body):
+    msg = MIMEMultipart()
+    msg["From"] = EMAIL_SENDER
+    msg["To"] = EMAIL_RECEIVER
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, msg.as_string())
+            print("[EMAIL] Alerte envoyée avec succès !")
+    except Exception as e:
+        print(f"[ERREUR] Impossible d'envoyer l'email : {e}")
+
 # Tentative de réparation automatique (exemple avec redémarrage de service)
 def attempt_repair(name, ip, port=None):
     print(f"[RÉPARATION] Tentative de réparation pour {name}...")
-    
+
     repaired = False
-    
+
     # Exemple de réparation : Redémarrer un service spécifique
     if port == 80:  # Serveur Web
         os.system("net start W3SVC")  # Windows: Redémarrer IIS
@@ -108,19 +129,21 @@ def attempt_repair(name, ip, port=None):
     elif port == 22:  # Serveur SSH
         os.system("net start sshd")  # Windows: Redémarrer SSH
         repaired = check_service(ip, 22)
-    elif not port:  # Ping KO => Redémarrage de la machine (exemple)
+    elif not port:  # Ping KO => Redémarrage de la machine
         os.system(f"shutdown /r /m \\\\{ip} /t 5")  # Windows: Redémarrer une machine distante
         repaired = check_ping(ip)
-    
+
     # Mise à jour de l'état si réparation réussie
     if repaired:
         message = f"RÉPARÉ : {name} ({ip}) fonctionne à nouveau."
         log_event(message, status="OK")
         send_alert(message)
+        send_email("RÉPARATION EFFECTUÉE", message)
     else:
         message = f"ÉCHEC DE RÉPARATION : {name} ({ip}) toujours en panne."
         log_event(message)
         send_alert(message)
+        send_email("ÉCHEC DE RÉPARATION", message)
 
 # Exécution de la surveillance
 def main():
@@ -131,6 +154,7 @@ def main():
             message = f"ALERTE : {name} ({ip}) est inactif !"
             log_event(message)
             send_alert(message)
+            send_email("Alerte Supervision", message)
             attempt_repair(name, ip)
         
         for port in device["services"]:
@@ -138,6 +162,7 @@ def main():
                 message = f"ALERTE : Service {port} de {name} ({ip}) est inactif !"
                 log_event(message)
                 send_alert(message)
+                send_email("Alerte Supervision", message)
                 attempt_repair(name, ip, port)
 
 if __name__ == "__main__":
